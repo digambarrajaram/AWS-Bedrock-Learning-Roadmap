@@ -1,6 +1,9 @@
 import os
+import logging
 import chromadb
 from chromadb.utils import embedding_functions
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Corporate compliance documentation seeded into the vector store.
@@ -187,45 +190,75 @@ def setup_vector_store() -> chromadb.Collection:
     Initializes a persistent local ChromaDB instance, creates/fetches 
     the collection, and seeds it with compliance records if empty.
     """
-    # Create a local cache path for the database inside your project structure
-    db_path = os.path.join(os.getcwd(), ".chroma_data")
-    
-    client = chromadb.PersistentClient(path=db_path)
-    
-    # Use standard default sentence-transformer embedding model
-    embedding_fn = embedding_functions.DefaultEmbeddingFunction()
-    
-    collection = client.get_or_create_collection(
-        name="corporate_terraform_compliance",
-        embedding_function=embedding_fn
+    # Use absolute path in home directory to ensure consistency
+    db_path = os.path.join(
+        os.path.expanduser("~"),
+        ".tf_rag_chroma"
     )
     
-    # Only seed data if database collection is completely fresh
-    if collection.count() == 0:
-        documents = [doc["text"] for doc in TERRAFORM_DOCS]
-        ids = [doc["id"] for doc in TERRAFORM_DOCS]
+    try:
+        # Create directory if it doesn't exist
+        os.makedirs(db_path, exist_ok=True)
+        logger.debug(f"ChromaDB path: {db_path}")
         
-        collection.add(
-            documents=documents,
-            ids=ids
+        client = chromadb.PersistentClient(path=db_path)
+        logger.info(f"✓ ChromaDB client initialized at {db_path}")
+        
+        # Use standard default sentence-transformer embedding model
+        embedding_fn = embedding_functions.DefaultEmbeddingFunction()
+        
+        collection = client.get_or_create_collection(
+            name="corporate_terraform_compliance",
+            embedding_function=embedding_fn
         )
         
-    return collection
+        # Only seed data if database collection is completely fresh
+        if collection.count() == 0:
+            logger.info("Seeding ChromaDB with Terraform compliance rules...")
+            documents = [doc["text"] for doc in TERRAFORM_DOCS]
+            ids = [doc["id"] for doc in TERRAFORM_DOCS]
+            
+            collection.add(
+                documents=documents,
+                ids=ids
+            )
+            logger.info(f"✓ Seeded {len(documents)} compliance rules into ChromaDB")
+        else:
+            logger.debug(f"✓ ChromaDB collection has {collection.count()} existing rules")
+            
+        return collection
+    
+    except Exception as e:
+        logger.error(f"Failed to initialize ChromaDB at {db_path}: {e}")
+        raise RuntimeError(f"ChromaDB initialization failed: {e}") from e
 
 
 def retrieve_context(collection: chromadb.Collection, query: str, n_results: int = 1) -> str:
     """
-    Queries ChromaDB vector collection and drops most context-relevant string.
+    Queries ChromaDB vector collection and returns most context-relevant string.
     """
     if not query.strip():
+        logger.debug("Empty query, returning empty context")
         return ""
-        
-    results = collection.query(
-        query_texts=[query],
-        n_results=n_results
-    )
     
-    # Combine retrieved document context records into a flat string payload
-    if results and "documents" in results and results["documents"]:
-        flat_docs = results["documents"][0]
-        return "\n\n".join(flat_docs)
+    try:
+        logger.debug(f"Querying ChromaDB for: {query[:50]}...")
+        results = collection.query(
+            query_texts=[query],
+            n_results=n_results
+        )
+        
+        # Combine retrieved document context records into a flat string payload
+        if results and "documents" in results and results["documents"]:
+            flat_docs = results["documents"][0]
+            context = "\n\n".join(flat_docs) if isinstance(flat_docs, list) else str(flat_docs)
+            logger.debug(f"✓ Retrieved {len(flat_docs) if isinstance(flat_docs, list) else 1} documents from ChromaDB")
+            return context
+        
+        logger.debug("No matching documents found in ChromaDB")
+        return ""
+    
+    except Exception as e:
+        logger.error(f"ChromaDB query failed: {e}")
+        logger.warning("Proceeding without RAG context due to query failure")
+        return ""

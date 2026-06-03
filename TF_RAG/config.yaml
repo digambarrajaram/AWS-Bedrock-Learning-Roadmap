@@ -1,0 +1,47 @@
+# TF_RAG Configuration File
+# All settings can be overridden by environment variables
+
+# AWS Configuration
+aws:
+  region: us-east-1
+  # Use AWS_BEDROCK_MODEL_ARN environment variable to override
+  bedrock_model_arn: arn:aws:bedrock:us-east-1:605134452604:inference-profile/global.amazon.nova-2-lite-v1:0
+
+# ChromaDB Vector Store Configuration
+chroma:
+  # Path will be created in user home directory (~/.tf_rag_chroma)
+  collection_name: corporate_terraform_compliance
+  # Number of results to retrieve from vector search
+  search_results: 1
+
+# Terraform Generation Configuration
+terraform:
+  # Maximum number of generation and fix attempts
+  max_attempts: 5
+  # Checkov security checks to skip
+  skip_checks:
+    - CKV_AWS_18   # Ensure S3 access logging is enabled
+    - CKV_AWS_144  # Ensure that a log filter and log group exist for CloudTrail
+
+# Checkov Security Scanner Configuration
+checkov:
+  # Timeout in seconds for Checkov scans
+  timeout: 120
+  # Output format for Checkov
+  output_format: json
+
+# Logging Configuration
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: INFO
+  # Log file path (relative to current working directory)
+  file: tf_rag.log
+  # Log format string
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Model Generation Configuration
+model:
+  # Temperature for model generation (0.0-1.0, lower = more deterministic)
+  temperature: 0.1
+  # Maximum tokens to generate
+  max_tokens: 4096
