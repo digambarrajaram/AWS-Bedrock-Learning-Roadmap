@@ -195,7 +195,7 @@ def scan_with_checkov(tf_code: str) -> tuple[int, int, list[str]]:
                 ],
                 capture_output=True,
                 text=True,
-                shell=False,
+                shell=True,
                 timeout=120,
             )
     except subprocess.TimeoutExpired:
