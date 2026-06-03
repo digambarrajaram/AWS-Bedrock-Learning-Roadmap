@@ -1,5 +1,4 @@
 import os
-
 import chromadb
 from chromadb.utils import embedding_functions
 
@@ -174,88 +173,59 @@ TERRAFORM_DOCS = [
           skip_final_snapshot    = false
           backup_retention_period = 7      (minimum)
           auto_minor_version_upgrade = true
-          publicly_accessible    = false
-          enabled_cloudwatch_logs_exports = ["error","general","slowquery"] (MySQL)
-        Store credentials in AWS Secrets Manager — never in tfvars plain text.
-        Use aws_db_subnet_group with private subnets only.
-        Mandatory outputs: db_instance_endpoint, db_instance_id.
-        Never output the master password.""",
-    },
-
-    # ── ALB ──────────────────────────────────────────────────────────────────
-    {
-        "id": "alb-standard",
-        "text": """Application Load Balancer Standard:
-        Use module 'terraform-aws-modules/alb/aws' >= 9.0 or native resources.
-        Mandatory settings:
-          internal           = false  (for public-facing ALBs)
-          load_balancer_type = "application"
-          enable_deletion_protection = true   (production)
-          drop_invalid_header_fields = true   (security requirement CKV_AWS_91)
-          access_logs { enabled = true }      (required by CKV_AWS_92)
-        Listeners: always redirect HTTP (80) → HTTPS (443).
-        HTTPS listener must reference an ACM certificate ARN variable.
-        Target group health check: healthy_threshold=3, interval=30.
-        Mandatory outputs: alb_arn, alb_dns_name, target_group_arn.""",
-    },
-
-    # ── IAM ──────────────────────────────────────────────────────────────────
-    {
-        "id": "iam-standard",
-        "text": """IAM Standard:
-        Follow least-privilege: never use Action=* or Resource=*.
-        Use aws_iam_role + aws_iam_role_policy_attachment for managed policies.
-        Use aws_iam_policy_document data source for inline policy documents.
-        For IRSA (EKS pod roles) always scope the trust policy to the specific
-        service account namespace/name using StringEquals on the OIDC condition.
-        Enable MFA delete on S3 state buckets.
-        Never create IAM users with console access programmatically.
-        Tag every IAM role with Environment, Team, CostCenter.""",
-    },
+          publicly_accessible    = false"""
+    }
 ]
 
 
 # ---------------------------------------------------------------------------
-# Vector-store helpers
+# Vector Store Engine Implementations
 # ---------------------------------------------------------------------------
 
-def setup_vector_store(db_path: str = "./chroma_db") -> chromadb.Collection:
+def setup_vector_store() -> chromadb.Collection:
     """
-    Initialises (or re-opens) the persistent ChromaDB collection and seeds it
-    with corporate compliance documentation if it is empty.
+    Initializes a persistent local ChromaDB instance, creates/fetches 
+    the collection, and seeds it with compliance records if empty.
     """
-    os.makedirs(db_path, exist_ok=True)
-
+    # Create a local cache path for the database inside your project structure
+    db_path = os.path.join(os.getcwd(), ".chroma_data")
+    
     client = chromadb.PersistentClient(path=db_path)
-    ef = embedding_functions.DefaultEmbeddingFunction()
+    
+    # Use standard default sentence-transformer embedding model
+    embedding_fn = embedding_functions.DefaultEmbeddingFunction()
+    
     collection = client.get_or_create_collection(
-        "tf_modules", embedding_function=ef
+        name="corporate_terraform_compliance",
+        embedding_function=embedding_fn
     )
-
+    
+    # Only seed data if database collection is completely fresh
     if collection.count() == 0:
-        print("🗄️  Seeding vector store with compliance documentation…")
+        documents = [doc["text"] for doc in TERRAFORM_DOCS]
+        ids = [doc["id"] for doc in TERRAFORM_DOCS]
+        
         collection.add(
-            documents=[d["text"] for d in TERRAFORM_DOCS],
-            ids=[d["id"] for d in TERRAFORM_DOCS],
+            documents=documents,
+            ids=ids
         )
-        print(f"   ✅ Seeded {len(TERRAFORM_DOCS)} documents.")
-
+        
     return collection
 
 
-def retrieve_context(collection: chromadb.Collection, query: str, n_results: int = 2) -> str:
+def retrieve_context(collection: chromadb.Collection, query: str, n_results: int = 1) -> str:
     """
-    Queries the vector store and returns the top-n matching documents
-    concatenated into a single context string.
-
-    Using n_results=2 (instead of 1) surfaces related standards that often
-    co-apply (e.g. VPC + subnetting outputs when the user asks for EKS).
+    Queries ChromaDB vector collection and drops most context-relevant string.
     """
-    results = collection.query(query_texts=[query], n_results=n_results)
-
-    docs: list[str] = []
-    if results and "documents" in results:
-        for doc_list in results["documents"]:
-            docs.extend(doc for doc in doc_list if doc)
-
-    return "\n\n---\n\n".join(docs)
+    if not query.strip():
+        return ""
+        
+    results = collection.query(
+        query_texts=[query],
+        n_results=n_results
+    )
+    
+    # Combine retrieved document context records into a flat string payload
+    if results and "documents" in results and results["documents"]:
+        flat_docs = results["documents"][0]
+        return "\n\n".join(flat_docs)

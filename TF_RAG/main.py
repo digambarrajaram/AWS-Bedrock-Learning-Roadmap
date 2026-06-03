@@ -114,6 +114,13 @@ def generate_terraform(
     return code_block_match.group(1).strip() if code_block_match else raw_code.strip()
 
 
+def _save(code: str, filename: str = "production_main.tf") -> None:
+    """Helper method to write the generated Terraform output back to disk."""
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(code)
+    print(f"💾 Code written to {filename}")
+
+
 # ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
@@ -134,6 +141,13 @@ def run_pipeline(prompt: str) -> None:
     print("⚙️  Generating baseline Terraform…")
     tf_code = generate_terraform(prompt, context_documentation=retrieved_rules)
 
+    history = [
+        {
+            "role": "user",
+            "content": [{"text": f"Generate a secure baseline configuration for: {prompt}"}],
+        }
+    ]
+
     # ── Step 3 + 4: Scan → fix loop ───────────────────────────────────────
     for attempt in range(1, MAX_ATTEMPTS + 1):
         print(f"\n{'─'*50}")
@@ -146,24 +160,20 @@ def run_pipeline(prompt: str) -> None:
         print(f"📊 Results: ✅ Passed: {passed} | ❌ Failed: {failed}")
 
         # ── SUCCESS ────────────────────────────────────────────────────────
-        # Guard: only treat as success when Checkov actually evaluated checks.
-        # passed=0 AND failed=0 usually means Checkov couldn't scan the file
-        # (e.g. module-only code without terraform init, or a parse error).
         if failed == 0 and passed > 0:
             print("\n🎉 All checks passed! Infrastructure is Checkov-compliant.")
             _save(tf_code)
             return
 
+        # Handle uninitialized module constraints or parsing anomalies 
         if failed == 0 and passed == 0:
             print(
                 "\n⚠️  Checkov returned 0 passed and 0 failed.\n"
-                "   This usually means the generated code uses external modules\n"
-                "   that require 'terraform init' before Checkov can lint them,\n"
-                "   or Checkov could not parse the file.\n"
-                "   The code has been saved for manual review."
+                "   Review the output logs to ensure non-JSON strings are stripped,\n"
+                "   or that external modules do not require a terraform init run."
             )
             if violations:
-                print("   Parse errors reported by Checkov:")
+                print("   Details/Parse errors reported by Checkov:")
                 for v in violations:
                     print(f"   {v}")
             _save(tf_code)
@@ -185,17 +195,10 @@ def run_pipeline(prompt: str) -> None:
                 print(f"   {v}")
 
         violation_text = "\n".join(violations)
-        history = [
-            {
-                "role": "user",
-                "content": [
-                    {"text": f"Generate a secure baseline configuration for: {prompt}"}
-                ],
-            },
-            {
-                "role": "assistant",
-                "content": [{"text": tf_code}],
-            },
+        
+        # Keep tracking the conversational states so the model doesn't drift
+        history.append({"role": "assistant", "content": [{"text": tf_code}]})
+        history.append(
             {
                 "role": "user",
                 "content": [
@@ -208,35 +211,15 @@ def run_pipeline(prompt: str) -> None:
                         )
                     }
                 ],
-            },
-        ]
-
-        tf_code = generate_terraform(
-            prompt,
-            context_documentation=retrieved_rules,
-            evaluation_history=history,
+            }
         )
+        
+        # Call model again with history payload to regenerate code
+        tf_code = generate_terraform(prompt, context_documentation=retrieved_rules, evaluation_history=history)
 
-
-def _save(tf_code: str, filename: str = "production_main.tf") -> None:
-    with open(filename, "w") as f:
-        f.write(tf_code)
-    print(f"💾 Code written to {filename}")
-
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        # Allow passing prompt as CLI arg for scripted use.
-        user_prompt = " ".join(sys.argv[1:])
-    else:
-        user_prompt = input("Describe your infrastructure: ").strip()
-
-    if not user_prompt:
-        print("❌ No prompt provided. Exiting.")
-        sys.exit(1)
-
+    user_prompt = input("Describe your infrastructure: ")
+    if not user_prompt.strip():
+        user_prompt = "create a vpc"
     run_pipeline(user_prompt)
