@@ -147,7 +147,8 @@ TERRAFORM_DOCS = [
     {
         "id": "vpc-module",
         "text": """VPC Module Standard:
-        Use module source 'terraform-aws-modules/vpc/aws', version >= 5.0.
+        Use module source 'terraform-aws-modules/vpc/aws' with an exact pinned version, e.g. version = \"5.0.0\".
+        Never use version ranges such as >= 5.0 or ~> 5.0 for module sources.
         Always create 3 public + 3 private subnets spread across 3 AZs.
         Mandatory settings:
           enable_nat_gateway   = true

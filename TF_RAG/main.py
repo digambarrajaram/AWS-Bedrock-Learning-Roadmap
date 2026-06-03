@@ -97,6 +97,10 @@ def _build_system_prompt(context_documentation: str) -> list[dict]:
                 "  • Use var.<name> for all configurable values – never hard-code.\n"
                 "  • Apply local.common_tags to every resource's tags block.\n"
                 "  • Pin provider versions and set required_version >= 1.6.\n"
+                "  • Pin all Terraform module versions to exact tags. Never use version ranges such as >=, <=, or ~> for module versions.\n"
+                "  • For registry modules use version = \"5.0.0\" or another exact semantic version.\n"
+                "  • For git module sources include an explicit commit hash in the source URL via ?ref=<commit>.\n"
+                "  • Do NOT leave provider blocks empty. Set region = var.aws_region and use default_tags { tags = local.common_tags } when possible.\n"
                 f"{rag_section}"
             )
         }
@@ -378,7 +382,11 @@ def run_pipeline(prompt: str) -> None:
                             "text": (
                                 "The Terraform code above has the following Checkov security "
                                 "violations. Fix ALL of them and output the complete corrected "
-                                "Terraform code with NO omissions:\n\n"
+                                "Terraform code with NO omissions. Do not use module version ranges. "
+                                "Pin all module versions exactly and avoid version expressions like >=, <=, or ~>. "
+                                "If the violation is CKV_TF_1 or CKV_TF_2, use an exact version tag such as \"5.0.0\" "
+                                "for registry modules. If using a git module source, include a specific commit "
+                                "hash via ?ref=<commit> in the source URL.\n\n"
                                 f"{violation_text}"
                             )
                         }
