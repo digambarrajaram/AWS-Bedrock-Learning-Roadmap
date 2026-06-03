@@ -116,7 +116,6 @@ def scan_with_checkov(tf_code: str) -> tuple[int, int, list[str]]:
         cmd_args = checkov_cmd + [
             "-d", tmp_dir,
             "--output", "json",
-            "--no-guide",
             "--skip-check", "CKV_AWS_18,CKV_AWS_144"
         ]
         

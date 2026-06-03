@@ -226,7 +226,6 @@ Edit `security_scanner.py` line ~100:
 cmd_args = checkov_cmd + [
     "-d", tmp_dir,
     "--output", "json",
-    "--no-guide",
     "--skip-check", "CKV_AWS_18,CKV_AWS_144"  # ← Modify here
 ]
 ```
