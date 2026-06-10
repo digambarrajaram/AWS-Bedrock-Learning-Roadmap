@@ -1,0 +1,19 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "my_agent": "./two_node.py:graph"
+  },
+  "graphs": {
+    "conditional_agent": "./conditional_nodes.py:app"
+  },
+  "graphs": {
+    "chatbot": "./chatbot.py:bot"
+  },
+   "graphs": {
+    "chatbot_tool_call": "./chatbot_tool_call.py:tool_bot"
+  },
+  "graphs": {
+    "chatbot_tool_call_agent": "./chatbot_tool_call_agent.py:tool_bot"
+  }
+
+}

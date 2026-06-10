@@ -1,0 +1,14 @@
+python -m venv dev_env
+
+.\dev_env\Scripts\Activate.ps1
+
+deactivate
+
+# 1. Clear out of the current one
+deactivate
+
+# 2. Login to the other one
+.\test_env\Scripts\Activate.ps1
+
+
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process

@@ -1,0 +1,64 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+dev_env/
+
+# Environment / secrets
+.env
+.env.*
+secrets.yml
+*.pem
+*.key
+
+# Editor and IDE
+.vscode/
+.idea/
+*.sublime*
+
+# Testing / coverage
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Databases
+chroma_db/
+**/chroma.sqlite3
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Node
+node_modules/
+
+# Misc
+.python-version
+*.exe
+*.dll
+

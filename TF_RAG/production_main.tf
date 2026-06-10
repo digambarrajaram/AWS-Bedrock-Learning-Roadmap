@@ -1,110 +1,67 @@
-# === FILE: main.tf ===
-terraform {
-  required_version = ">= 1.6"
+resource "aws_kms_key" "s3_key" {
+  description             = "KMS key for S3 bucket encryption"
+  enable_key_rotation     = true
+  policy                  = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "Allow root user permissions"
+        Effect    = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action    = "kms:*"
+        Resource  = "*"
+      },
+    ]
+  })
+}
 
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
+resource "aws_s3_bucket" "main" {
+  bucket = "unique-bucket-name-example"
+}
+
+resource "aws_s3_bucket_versioning" "main" {
+  bucket = aws_s3_bucket.main.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "main" {
+  bucket = aws_s3_bucket.main.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.s3_key.arn
     }
   }
 }
 
-provider "aws" {
-  region = var.region
+resource "aws_s3_bucket_public_access_block" "main" {
+  bucket = aws_s3_bucket.main.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
-module "vpc" {
-  source = "terraform-aws-modules/vpc/aws"
-  version = ">= 5.0"
-
-  name = var.vpc_name
-  cidr = var.vpc_cidr
-
-  azs             = var.azs
-  private_subnets = var.private_subnets
-  public_subnets  = var.public_subnets
-
-  enable_nat_gateway   = true
-  single_nat_gateway   = false
-  enable_dns_hostnames = true
-  enable_dns_support   = true
-  enable_flow_log      = true
-
-  flow_log_destination_type                    = "cloud-watch-logs"
-  flow_log_cloudwatch_log_group_retention_days = 30
-  flow_log_traffic_type                        = "ALL"
-
-  tags = var.tags
-
-  public_subnet_tags = {
-    "kubernetes.io/role/elb" = 1
-  }
-
-  private_subnet_tags = {
-    "kubernetes.io/role/internal-elb" = 1
+resource "aws_s3_bucket_lifecycle_configuration" "main" {
+  bucket = aws_s3_bucket.main.id
+  rule {
+    id     = "abort-incomplete-uploads"
+    status = "Enabled"
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
   }
 }
 
-# === FILE: variables.tf ===
-variable "vpc_name" {
-  type        = string
-  description = "Name of the VPC"
-}
+resource "aws_s3_bucket_notification" "main" {
+  bucket = aws_s3_bucket.main.id
 
-variable "vpc_cidr" {
-  type        = string
-  description = "CIDR block for the VPC"
-}
-
-variable "azs" {
-  type        = list(string)
-  description = "List of AZs"
-}
-
-variable "private_subnets" {
-  type        = list(string)
-  description = "List of private subnet CIDR blocks"
-}
-
-variable "public_subnets" {
-  type        = list(string)
-  description = "List of public subnet CIDR blocks"
-}
-
-variable "region" {
-  type        = string
-  description = "AWS region"
-}
-
-variable "tags" {
-  type        = map(string)
-  description = "Common tags to apply to resources"
-  default     = {}
-}
-
-# === FILE: outputs.tf ===
-output "vpc_id" {
-  description = "ID of the provisioned VPC"
-  value       = module.vpc.vpc_id
-}
-
-output "private_subnet_ids" {
-  description = "IDs of private subnets"
-  value       = module.vpc.private_subnets
-}
-
-output "public_subnet_ids" {
-  description = "IDs of public subnets"
-  value       = module.vpc.public_subnets
-}
-
-output "vpc_cidr_block" {
-  description = "CIDR block of the VPC"
-  value       = module.vpc.vpc_cidr_block
-}
-
-output "nat_public_ips" {
-  description = "Public IPs of NAT gateways"
-  value       = module.vpc.nat_public_ips
+  lambda_function {
+    lambda_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:example-function"
+    events               = ["s3:ObjectCreated:*"]
+  }
 }
