@@ -8,9 +8,11 @@ venv/
 .venv/
 dev_env/
 
-# Environment / secrets
+# Environment / secrets (root and subdirectories)
 .env
 .env.*
+**/.env
+**/.env.*
 secrets.yml
 *.pem
 *.key
@@ -57,8 +59,14 @@ chroma_db/
 # Node
 node_modules/
 
+# Config files
+server.config
+*.config
+
 # Misc
 .python-version
 *.exe
 *.dll
 
+# LangGraph generated files
+langgraph/langgraph.json
